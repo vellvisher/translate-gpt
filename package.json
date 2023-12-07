@@ -1,0 +1,15 @@
+{
+  "name": "translate-gpt",
+  "version": "1.0.0",
+  "description": "Translate a directory via ChatGPT with openai-node",
+  "main": "translate-gpt.ts",
+  "repository": "https://github.com/vellvisher/translate-gpt",
+  "author": "Vaarnan Drolia",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "openai": "^4.20.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.3"
+  }
+}
