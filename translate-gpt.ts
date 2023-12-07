@@ -7,7 +7,7 @@ import { ChatCompletion } from 'openai/resources';
 let DRY_RUN = false;
 let LANG_MAP: { [key: string]: string } = {};
 const MAX_TOKENS = 4096;
-const openai = new OpenAI({ apiKey: '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' });
+const openai = new OpenAI({ apiKey: <TODO_KEY> });
 let VERBOSE_LOGGING = false;
 
 function isAnyKeyEndsWithXliff(obj: { [key: string]: string }): boolean {
