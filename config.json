@@ -3,9 +3,6 @@
     "ignore_pattern": "_url",
     "dry_run": true,
     "batch_request": true,
-    "extensions": ["xliff"],
-    "source_folder": "en-GB.xcloc",
-    "langs": {},
     "lang_map": {
         "sk": "Slovak",
         "fr-FR": "French",

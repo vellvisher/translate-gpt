@@ -188,7 +188,8 @@ async function __chatGptTranslate(srcNameToText: { [key: string]: string }, srcN
     const extensions: [string] = config.extensions || ['txt', 'md', 'json'];
 
     // const srcFiles = extensions.flatMap(ext => glob.sync(`${srcFolder}/*.${ext}`));
-    const srcFiles = extensions.flatMap(ext => glob.sync(`${srcFolder}/**/*.${ext}`));
+    const matchPattern = config.match_pattern || "*";
+    const srcFiles = extensions.flatMap(ext => glob.sync(`${srcFolder}/**/${matchPattern}.${ext}`));
 
     DRY_RUN = config.dry_run === true;
 
