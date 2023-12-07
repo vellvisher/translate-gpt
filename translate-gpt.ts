@@ -8,15 +8,32 @@ let DRY_RUN = false;
 let LANG_MAP: { [key: string]: string } = {};
 const MAX_TOKENS = 4096;
 const openai = new OpenAI({ apiKey: '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' });
+let VERBOSE_LOGGING = false;
 
-async function chatGptTranslate(srcFiles: string[], language: string, targetFolder: string,
+function isAnyKeyEndsWithXliff(obj: { [key: string]: string }): boolean {
+    return Object.keys(obj).some(key => key.endsWith('xliff'));
+}
+
+async function chatGptTranslate(srcFiles: string[], language: string, targetFolder: string | null,
     ignorePattern: string, batchRequest: boolean): Promise<void> {
     let srcNameToText: { [key: string]: string } = {};
     let srcNameToOutputFile: { [key: string]: string } = {};
 
     for (const srcFile of srcFiles) {
-        const targetFile = path.join(targetFolder, path.basename(srcFile));
         let srcFileName = path.basename(srcFile);
+        if (targetFolder == null) {
+            console.log(`translating[${language}] ${srcFile} in-place`);
+            let text = fs.readFileSync(srcFile, 'utf8')
+            if (!text.trim()) {
+                console.log('Empty file, will ignore');
+                continue;
+            }
+            srcNameToText[srcFileName] = text;
+            srcNameToOutputFile[srcFileName] = srcFile;
+            continue;
+        }
+
+        const targetFile = path.join(targetFolder, path.basename(srcFile));
         let targetFileName = path.basename(targetFile);
         console.log(`translating[${language}] ${srcFileName} to ${targetFileName}`);
 
@@ -37,7 +54,11 @@ async function chatGptTranslate(srcFiles: string[], language: string, targetFold
         }
     }
 
-    await __chatGptTranslate(srcNameToText, srcNameToOutputFile, language, batchRequest);
+    if (targetFolder == null) {
+        await __chatGptTranslate(srcNameToText, srcNameToOutputFile, language, false);
+    } else {
+        await __chatGptTranslate(srcNameToText, srcNameToOutputFile, language, batchRequest);
+    }
 }
 
 async function __chatGptTranslate(srcNameToText: { [key: string]: string }, srcNameToOutputFile: { [key: string]: string }, targetLangLocale: string, batchRequest: boolean): Promise<void> {
@@ -48,8 +69,15 @@ async function __chatGptTranslate(srcNameToText: { [key: string]: string }, srcN
         `Return only the translated text in the response, target lang/locale: ${targetLangLocale} ${properLanguageName}`,
         'Target response should be a valid JSON object in the format {fileName: content} similar to input\n\n'
     ];
-    console.log(srcNameToText);
-    console.log(srcNameToOutputFile);
+    if (isAnyKeyEndsWithXliff(srcNameToText)) {
+        prompt.push('Ensure translation file is translated exactly according to xliff format and source is not changed');
+        prompt.push('add a new line with the <target> language translation expected in the correct xliff format');
+    }
+
+    if (VERBOSE_LOGGING) {
+        console.log(srcNameToText);
+        console.log(srcNameToOutputFile);
+    }
 
     if (batchRequest) {
         const totalLength = Object.values(srcNameToText).reduce((a, text) => a + JSON.stringify(text).length, 0);
@@ -86,8 +114,8 @@ async function __chatGptTranslate(srcNameToText: { [key: string]: string }, srcN
             }
         });
     } else {
-        for (const [_, text] of Object.entries(srcNameToText)) {
-            let jsonMap = JSON.stringify({ index: text });
+        for (const [fileName, text] of Object.entries(srcNameToText)) {
+            let jsonMap = JSON.stringify({ [fileName]: text });
             let content = `${prompt}${jsonMap}`;
 
 
@@ -100,9 +128,38 @@ async function __chatGptTranslate(srcNameToText: { [key: string]: string }, srcN
                 model: 'gpt-3.5-turbo', messages: [{
                     role: "user",
                     content: content,
-                }]
+                },],
+                temperature: 0.5,
             });
-            console.log(response);
+            if (VERBOSE_LOGGING) {
+                console.log(response);
+            }
+            response.choices.forEach((choice: ChatCompletion.Choice, index: number) => {
+                if (VERBOSE_LOGGING) {
+                    console.log(choice);
+                    console.log(index);
+                }
+                let content = choice.message.content;
+                if (!content) {
+                    console.log("content is null");
+                    return;
+                }
+                // let fileNameToOutput: { [key: string]: string } = JSON.parse(content);
+                // for (const [fileName, output] of Object.entries(fileNameToOutput)) {
+                //     console.log(`Writing file ${srcNameToOutputFile[fileName]}`);
+                //     fs.writeFileSync(srcNameToOutputFile[fileName]!, output);
+                // }
+                try {
+                    let fileNameToOutput: { [key: string]: string } = JSON.parse(content);
+                    for (const [fileName, output] of Object.entries(fileNameToOutput)) {
+                        console.log(`Writing file ${srcNameToOutputFile[fileName]}`);
+                        fs.writeFileSync(srcNameToOutputFile[fileName]!, output);
+                    }
+                } catch (error) {
+                    console.error(`Failed to parse JSON from file '${srcNameToOutputFile[fileName]}' content. Skipping this file.`);
+                    console.error(error);
+                }
+            });
             // fs.writeFileSync(targetFiles[index], response.choices[0].message.content.trim());
         }
     }
@@ -141,14 +198,16 @@ async function __chatGptTranslate(srcNameToText: { [key: string]: string }, srcN
     }
 
     for (const language of langList) {
-        if (extensions.includes('xliff')) {
-            console.log("new mode");
-            return;
-        }
         const targetFolder = path.join(dataFolder, language);
+        console.log(targetFolder);
+        if (extensions.includes('xliff')) {
+            await chatGptTranslate(glob.sync(`${targetFolder}/**/*.xliff`), language, null, config.ignore_pattern, config.batch_request)
+            continue;
+        }
+
         if (!fs.existsSync(targetFolder)) {
             fs.mkdirSync(targetFolder);
         }
-        await chatGptTranslate(srcFiles, language, targetFolder, config.ignore_pattern, config.batch_request)
+        await chatGptTranslate(srcFiles, language, targetFolder, config.ignore_pattern, config.batch_request);
     }
 })();
