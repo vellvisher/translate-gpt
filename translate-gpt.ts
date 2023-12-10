@@ -191,6 +191,7 @@ async function __chatGptTranslate(srcNameToText: { [key: string]: string }, srcN
     const matchPattern = config.match_pattern || "*";
     const srcFiles = extensions.flatMap(ext => glob.sync(`${srcFolder}/**/${matchPattern}.${ext}`));
 
+    // TODO : To use the tool, run either 'dart fix --dry-run' for a preview of the proposed changes for a project, or 'dart fix --apply' to apply the changes.
     DRY_RUN = config.dry_run === true;
 
     if (!langList.length) {
